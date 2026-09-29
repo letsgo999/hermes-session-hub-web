@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Session Hub Web</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="firstRun" class="disclosure hidden" aria-labelledby="firstRunTitle">
+      <div>
+        <p class="eyebrow">Hermes Session Hub Web / 0.1.0-preview.1</p>
+        <h1 id="firstRunTitle">로컬 전용 세션 허브</h1>
+        <p>127.0.0.1에서만 실행되며 계정, 로그인, 텔레메트리, 클라우드 전송이 없습니다.</p>
+        <dl class="facts">
+          <dt>호환성</dt><dd id="detectedProfiles">확인 중</dd>
+          <dt>데이터 위치</dt><dd id="storageRoot">확인 중</dd>
+          <dt>Kanban</dt><dd id="kanbanState">선택 감지</dd>
+        </dl>
+      </div>
+      <button id="confirmStart" type="button">시작</button>
+    </section>
+
+    <section id="app" class="app hidden">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">로컬 전용</p>
+          <h1>프로젝트 홈</h1>
+        </div>
+        <nav aria-label="주요 화면">
+          <button class="tab active" data-view="home" type="button">오늘</button>
+          <button class="tab" data-view="projectsView" type="button">프로젝트</button>
+          <button class="tab" data-view="sessions" type="button">최근 세션</button>
+          <button class="tab" data-view="skills" type="button">스킬</button>
+          <button class="tab" data-view="kanban" type="button">Kanban</button>
+          <button class="tab" data-view="diagnostics" type="button">진단</button>
+        </nav>
+      </header>
+
+      <section id="home" class="view">
+        <h2>오늘의 실행목록</h2>
+        <div id="todayList" class="grid" aria-live="polite"></div>
+        <h2>최근 세션</h2>
+        <div id="recentHomeSessions" class="stack"></div>
+      </section>
+
+      <section id="projectsView" class="view hidden">
+        <h2>프로젝트</h2>
+        <div class="toolbar">
+          <input id="projectName" aria-label="프로젝트 이름" placeholder="새 프로젝트 이름">
+          <button id="createProject" type="button">프로젝트 추가</button>
+          <button id="downloadRegistry" type="button">Registry 내보내기</button>
+        </div>
+        <div id="projects" class="grid" aria-live="polite"></div>
+        <h2>연결 후보</h2>
+        <div id="candidates" class="stack"></div>
+        <h2>Registry 복원</h2>
+        <textarea id="restoreText" aria-label="Registry JSON" placeholder="Registry JSON 붙여넣기"></textarea>
+        <button id="restoreRegistry" type="button">복원</button>
+      </section>
+
+      <section id="sessions" class="view hidden">
+        <div class="toolbar">
+          <input id="searchBox" aria-label="세션 검색" placeholder="검색어, 세션 ID, 제목">
+          <input id="profileFilter" aria-label="프로필 필터" placeholder="프로필">
+          <input id="sourceFilter" aria-label="소스 필터" placeholder="소스">
+          <input id="fromFilter" aria-label="시작일" placeholder="YYYY-MM-DD">
+          <input id="toFilter" aria-label="종료일" placeholder="YYYY-MM-DD">
+          <label><input id="contentSearch" type="checkbox"> 메시지 내용 검색</label>
+          <button id="runSearch" type="button">검색</button>
+        </div>
+        <div id="sessionList" class="stack"></div>
+      </section>
+
+      <section id="skills" class="view hidden">
+        <h2>읽기 전용 Skills</h2>
+        <div class="toolbar">
+          <input id="skillSearchBox" aria-label="스킬 검색" placeholder="스킬 검색">
+          <button id="runSkillSearch" type="button">검색</button>
+        </div>
+        <div id="skillList" class="stack" aria-live="polite"></div>
+        <pre id="skillPreview" class="preview" tabindex="0">미리보기</pre>
+      </section>
+
+      <section id="kanban" class="view hidden">
+        <h2>읽기 전용 Kanban</h2>
+        <div class="toolbar">
+          <input id="kanbanStatus" aria-label="Kanban 상태" placeholder="상태">
+          <input id="kanbanAssignee" aria-label="Kanban 담당자" placeholder="담당자">
+          <button id="loadKanban" type="button">불러오기</button>
+        </div>
+        <p id="kanbanNotice">Kanban DB가 없으면 정상입니다.</p>
+        <div id="kanbanList" class="stack"></div>
+      </section>
+
+      <section id="diagnostics" class="view hidden">
+        <h2>진단</h2>
+        <dl class="facts" id="diagSummary"></dl>
+        <div class="toolbar">
+          <button id="makeDiag" type="button">진단 ZIP 다운로드</button>
+          <button id="showReceipt" type="button">파일럿 영수증 다운로드</button>
+        </div>
+        <pre id="diagnosticOutput" tabindex="0"></pre>
+      </section>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
