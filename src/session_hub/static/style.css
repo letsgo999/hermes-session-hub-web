@@ -1,0 +1,166 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f8f5;
+  --panel: #ffffff;
+  --text: #20231f;
+  --muted: #687064;
+  --line: #dfe4db;
+  --accent: #126b5d;
+  --accent-2: #8b5e21;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button.tab {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+button.active {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+input, select, textarea {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  min-width: 240px;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  margin: 10px 0;
+}
+
+.shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 18px;
+}
+
+.disclosure, .topbar, .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.disclosure {
+  min-height: 70vh;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+h1, h2, h3 {
+  margin: 0 0 10px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 14px;
+  margin-top: 24px;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.view {
+  margin-top: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.card p {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.card input, .card select, .card button, .card label {
+  margin: 4px 6px 4px 0;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #eef1ec;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .disclosure, .topbar, .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  input {
+    min-width: 100%;
+  }
+}

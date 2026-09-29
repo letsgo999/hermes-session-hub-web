@@ -1,0 +1,4 @@
+PRODUCT_NAME = "Hermes Session Hub Web"
+VERSION = "0.1.0-preview.1"
+SUPPORTED_SCHEMA_MIN = 26
+SUPPORTED_SCHEMA_MAX = 30
