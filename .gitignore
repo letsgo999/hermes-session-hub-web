@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.spec
+*.log
+credentials/
+token.json
+*.db
+*.sqlite
+*.zip
+*.sha256
+.pytest_cache/
