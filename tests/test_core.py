@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -201,6 +202,17 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(validate_stop_request(lock1.lock_file, os.getpid(), "nonce"))
         self.assertFalse(validate_stop_request(lock1.lock_file, 67890))
         lock1.release()
+
+    def test_pid_liveness_detects_another_running_process(self):
+        from session_hub.lifecycle import _pid_alive
+
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        try:
+            self.assertTrue(_pid_alive(child.pid))
+        finally:
+            child.terminate()
+            child.wait(timeout=10)
+        self.assertFalse(_pid_alive(child.pid))
 
     def test_stale_lock_is_recovered_atomically(self):
         from session_hub.lifecycle import InstanceLock
