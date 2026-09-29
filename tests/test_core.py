@@ -87,7 +87,47 @@ class CoreTests(unittest.TestCase):
         after = (hashlib.sha256(db.read_bytes()).hexdigest(), db.stat().st_mtime_ns)
         self.assertEqual(before, after)
         self.assertFalse((self.tmp / "state.db-wal").exists())
+        self.assertFalse((self.tmp / "state.db-shm").exists())
         self.assertFalse((self.tmp / "state.db-journal").exists())
+
+    def test_wal_source_reads_committed_frames_without_creating_sidecars(self):
+        from session_hub.sources import HermesSource
+
+        db = self.tmp / "state.db"
+        self.make_state_db(db)
+        writer = sqlite3.connect(db)
+        self.addCleanup(writer.close)
+        self.assertEqual(writer.execute("PRAGMA journal_mode=WAL").fetchone()[0], "wal")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute(
+            "INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "sess_wal", "WAL 세션", "desktop", "chat", "thread_wal",
+                "2026-01-02T00:00:00Z", "2026-01-02T00:01:00Z", 0,
+                "C:/Synthetic/ProjectWAL",
+            ),
+        )
+        writer.commit()
+        self.assertGreater((self.tmp / "state.db-wal").stat().st_size, 0)
+        self.assertTrue((self.tmp / "state.db-shm").exists())
+        before_names = {item.name for item in self.tmp.iterdir()}
+
+        sessions = HermesSource(db, profile_id="default").list_sessions()
+
+        self.assertIn("sess_wal", {row["id"] for row in sessions})
+        self.assertEqual(before_names, {item.name for item in self.tmp.iterdir()})
+        self.assertFalse((self.tmp / "state.db-journal").exists())
+
+    def test_incomplete_wal_sidecars_fail_closed(self):
+        from session_hub.sources import HermesSource, UnsafeSourceStateError
+
+        db = self.tmp / "state.db"
+        self.make_state_db(db)
+        (self.tmp / "state.db-wal").write_bytes(b"incomplete")
+
+        with self.assertRaisesRegex(UnsafeSourceStateError, "incomplete"):
+            HermesSource(db, profile_id="default")
+        self.assertFalse((self.tmp / "state.db-shm").exists())
 
     def test_profile_absence_kanban_absence_and_auto_detection(self):
         from session_hub.sources import detect_profiles, detect_kanban

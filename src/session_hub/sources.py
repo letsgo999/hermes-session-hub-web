@@ -12,14 +12,30 @@ class UnsupportedSchemaError(RuntimeError):
     pass
 
 
+class UnsafeSourceStateError(RuntimeError):
+    pass
+
+
 def _dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 
 def _readonly_connection(path: Path):
-    # mode=ro + query_only + the authorizer prevents source writes while still
-    # allowing SQLite to see committed WAL content from a running Hermes.
-    uri = f"file:{quote(str(path.resolve()).replace(os.sep, '/'), safe=':/')}?mode=ro"
+    # A sidecar-free WAL-mode snapshot must use immutable=1. Plain mode=ro can
+    # create -wal/-shm files even though SQL writes are disabled. When a live
+    # source already has both WAL sidecars, keep mode=ro so committed WAL frames
+    # remain visible. Refuse incomplete/hot sidecar states instead of silently
+    # returning stale or inconsistent data.
+    wal = Path(f"{path}-wal")
+    shm = Path(f"{path}-shm")
+    journal = Path(f"{path}-journal")
+    if journal.exists():
+        raise UnsafeSourceStateError("Source has a rollback journal")
+    if wal.exists() != shm.exists():
+        raise UnsafeSourceStateError("Source WAL sidecars are incomplete")
+    immutable = not wal.exists()
+    params = "mode=ro&immutable=1" if immutable else "mode=ro"
+    uri = f"file:{quote(str(path.resolve()).replace(os.sep, '/'), safe=':/')}?{params}"
     con = sqlite3.connect(uri, uri=True)
     con.row_factory = _dict_factory
     con.execute("PRAGMA query_only=ON")
@@ -176,7 +192,7 @@ def detect_profiles(localapp=None):
                 "schemaVersion": src.schema_version,
                 "mtime": db.stat().st_mtime,
             })
-        except UnsupportedSchemaError as exc:
+        except (UnsupportedSchemaError, UnsafeSourceStateError) as exc:
             found.append({"id": profile_id, "dbPath": str(db), "unsupported": str(exc)})
     return found
 
