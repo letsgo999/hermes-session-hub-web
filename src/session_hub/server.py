@@ -133,6 +133,10 @@ class HubServer:
                 return True
 
             def _send(self, status=200, body=b"", content_type="application/json", cookie=False, download=None):
+                if int(status) >= 400:
+                    # Error paths may reject a request before its body is read.
+                    # Force-close so unread bytes cannot corrupt a reused socket.
+                    self.close_connection = True
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))

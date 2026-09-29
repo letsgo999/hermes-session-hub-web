@@ -30,6 +30,8 @@ class BuildScriptTests(unittest.TestCase):
         self.assertIn('"--paths"', text)
         self.assertIn("session_hub/static", text)
         self.assertIn("INSTALL-KO.md", text)
+        start_wrapper = (ROOT / "packaging" / "start.py").read_text(encoding="utf-8")
+        self.assertIn("sys.exit(main())", start_wrapper)
 
 
 if __name__ == "__main__":
