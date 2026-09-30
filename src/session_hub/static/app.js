@@ -205,11 +205,27 @@ function renderSessions(list, sessions) {
     const expand = document.createElement("button");
     expand.type = "button";
     setText(expand, "메시지 보기");
+    let messagePre = null;
+    let loadingMessages = false;
     expand.addEventListener("click", async () => {
-      const msgs = await api(`/api/messages?profile=${encodeURIComponent(session.profile_id)}&sessionId=${encodeURIComponent(session.id)}`);
-      const pre = document.createElement("pre");
-      setText(pre, msgs.messages.map((m) => `${m.role}: ${m.content}`).join("\n"));
-      node.append(pre);
+      if (loadingMessages) return;
+      if (messagePre && messagePre.parentNode) {
+        messagePre.remove();
+        setText(expand, "메시지 보기");
+        return;
+      }
+      if (!messagePre) {
+        loadingMessages = true;
+        try {
+          const msgs = await api(`/api/messages?profile=${encodeURIComponent(session.profile_id)}&sessionId=${encodeURIComponent(session.id)}`);
+          messagePre = document.createElement("pre");
+          setText(messagePre, msgs.messages.map((m) => `${m.role}: ${m.content}`).join("\n"));
+        } finally {
+          loadingMessages = false;
+        }
+      }
+      node.append(messagePre);
+      setText(expand, "메시지 접기");
     });
     const open = document.createElement("button");
     open.type = "button";
@@ -217,8 +233,6 @@ function renderSessions(list, sessions) {
     open.addEventListener("click", async () => {
       const payload = await api(`/api/open-url?profile=${encodeURIComponent(session.profile_id)}&sessionId=${encodeURIComponent(session.id)}`);
       location.href = payload.url;
-      if (navigator.clipboard) await navigator.clipboard.writeText(payload.command);
-      node.append(field("세션 ID", payload.sessionId), field("프로필", payload.profile), field("대체 명령", payload.command));
     });
     node.append(expand, open);
     list.append(node);
@@ -298,5 +312,11 @@ function bind() {
   document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
 }
 
-bind();
-loadBootstrap().catch((err) => setText($("detectedProfiles"), err.message));
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { renderSessions };
+}
+
+if (typeof document !== "undefined") {
+  bind();
+  loadBootstrap().catch((err) => setText($("detectedProfiles"), err.message));
+}

@@ -269,7 +269,8 @@ class CoreTests(unittest.TestCase):
         from session_hub.server import HubServer
 
         localapp = self.tmp / "localapp"
-        self.make_state_db(localapp / "hermes" / "state.db")
+        state_db = localapp / "hermes" / "state.db"
+        self.make_state_db(state_db)
         self.make_kanban_db(localapp / "hermes" / "kanban.db")
         srv = HubServer(localapp=localapp, registry_root=self.tmp / "reg", open_browser=False)
         srv.start_in_thread()
@@ -316,9 +317,17 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("본문 비공개", json.dumps(kanban, ensure_ascii=False))
         self.assertNotIn("결과 비공개", json.dumps(kanban, ensure_ascii=False))
 
+        source_hash_before = hashlib.sha256(state_db.read_bytes()).hexdigest()
         opened = json.loads(opener.open(base + "/api/open-url?profile=default&sessionId=sess_alpha", timeout=5).read())
         self.assertEqual(opened["sessionId"], "sess_alpha")
-        self.assertIn('hermes --profile "default" session open "sess_alpha"', opened["command"])
+        self.assertEqual(opened["url"], "hermes://open/sess_alpha")
+        self.assertNotIn("command", opened)
+        self.assertEqual(hashlib.sha256(state_db.read_bytes()).hexdigest(), source_hash_before)
+        self.assertFalse(Path(str(state_db) + "-wal").exists())
+        self.assertFalse(Path(str(state_db) + "-shm").exists())
+
+        from session_hub.server import _session_open_url
+        self.assertEqual(_session_open_url("sess:encoded"), "hermes://open/sess%3Aencoded")
 
         exported = opener.open(base + "/api/registry/export", timeout=5)
         self.assertIn("attachment", exported.headers["Content-Disposition"])

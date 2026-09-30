@@ -45,9 +45,9 @@ def _attachment(name):
     return f'attachment; filename="{name}"'
 
 
-def _win_quote(value):
-    _safe_id(value)
-    return '"' + value.replace('"', '\\"') + '"'
+def _session_open_url(session_id):
+    _safe_id(session_id, "sessionId")
+    return f"hermes://open/{quote(session_id, safe='')}"
 
 
 class HubServer:
@@ -295,9 +295,11 @@ class HubServer:
                     src = outer._profile_source(profile)
                     if not src.has_session(sid):
                         raise KeyError("session_not_found")
-                    url = f"hermes://session/open?profile={quote(profile)}&sessionId={quote(sid)}"
-                    command = f"hermes --profile {_win_quote(profile)} session open {_win_quote(sid)}"
-                    return self._json({"url": url, "sessionId": sid, "profile": profile, "command": command})
+                    return self._json({
+                        "url": _session_open_url(sid),
+                        "sessionId": sid,
+                        "profile": profile,
+                    })
                 if path == "/api/skills":
                     return self._json(search_skills(outer._profiles(), qs.get("q", [""])[0][:100], qs.get("profile", [""])[0] or None))
                 if path.startswith("/api/skills/"):
