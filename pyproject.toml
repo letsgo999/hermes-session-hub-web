@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-session-hub-web"
-version = "0.1.0rc1"
+version = "0.1.0rc2"
 description = "Local-first browser app for official Hermes Desktop sessions"
 readme = "README.md"
 requires-python = ">=3.10"

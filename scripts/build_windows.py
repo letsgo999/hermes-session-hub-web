@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 import re
 
-PRODUCT_VERSION = "0.1.0-preview.1"
+PRODUCT_VERSION = "0.1.0-preview.2"
 ZIP_NAME = f"Hermes-Session-Hub-Web-v{PRODUCT_VERSION}-win-x64.zip"
 
 

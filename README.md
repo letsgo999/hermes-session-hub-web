@@ -1,4 +1,4 @@
-# Hermes Session Hub Web / 0.1.0-preview.1
+# Hermes Session Hub Web / 0.1.0-preview.2
 
 ## 한국어
 
@@ -13,7 +13,7 @@ Hermes Session Hub Web은 공식 Hermes Desktop 사용자를 위한 Windows 10/1
 - 선택 Kanban DB는 읽기 전용 메타데이터만 표시합니다.
 - 감지된 Skills는 읽기 전용 검색과 안전한 평문 미리보기를 제공합니다.
 - Registry 내보내기/복원, redacted 진단 ZIP, privacy-safe 파일럿 영수증 다운로드를 제공합니다.
-- `Open in Hermes`는 `hermes://` URL과 복사 가능한 CLI 명령만 제공합니다. 임의 명령 실행은 하지 않습니다.
+- `Open in Hermes`는 선택한 기존 세션의 공식 `hermes://open/<encoded-session-id>` URL을 제공합니다. 공식 URI에는 프로필 정보가 없어 활성 Desktop 프로필의 세션만 열 수 있으며 자동 교차 프로필 전환은 지원하지 않습니다.
 
 ### 제한
 
@@ -55,7 +55,7 @@ Hermes Session Hub Web is a Windows 10/11 local-only browser app for official He
 - Shows optional Kanban metadata read-only.
 - Preserves the read-only Skills search and safe plain-text preview feature.
 - Supports Registry export/restore, redacted diagnostics ZIP download, and privacy-safe pilot receipt download.
-- `Open in Hermes` returns a `hermes://` URL and copyable CLI command only. It does not execute arbitrary commands.
+- `Open in Hermes` returns the official `hermes://open/<encoded-session-id>` URL for the selected existing session. The official URI carries no profile identity, so the session must belong to the active Desktop profile; automatic cross-profile switching is unsupported.
 
 ### Limitations
 
