@@ -349,6 +349,86 @@ class CoreTests(unittest.TestCase):
         )
         self.assertTrue(json.loads(opener.open(shutdown, timeout=5).read())["stopping"])
 
+    def test_session_filter_options_kst_dates_combinations_and_empty_states(self):
+        from session_hub.server import HubServer
+
+        localapp = self.tmp / "filters-localapp"
+        default_db = localapp / "hermes" / "state.db"
+        student_db = localapp / "hermes" / "profiles" / "student" / "state.db"
+        self.make_state_db(default_db)
+        self.make_state_db(student_db)
+
+        def replace_sessions(path, rows):
+            con = sqlite3.connect(path)
+            con.execute("DELETE FROM messages")
+            con.execute("DELETE FROM sessions")
+            con.executemany(
+                "INSERT INTO sessions VALUES (?, ?, ?, 'chat', ?, ?, ?, 0, ?)",
+                [(sid, sid, source, f"thread-{sid}", stamp, stamp, f"C:/Synthetic/{sid}") for sid, source, stamp in rows],
+            )
+            con.commit()
+            con.close()
+
+        replace_sessions(default_db, [
+            ("before", "desktop", "2025-12-31T14:59:59Z"),
+            ("start", "desktop", "2025-12-31T15:00:00Z"),
+            ("end", "cli", "2026-01-01T14:59:59Z"),
+            ("after", "browser", "2026-01-01T15:00:00Z"),
+        ])
+        replace_sessions(student_db, [
+            ("middle", "telegram", "2026-01-01T03:00:00Z"),
+            ("blank-source", "", "2026-01-01T04:00:00Z"),
+        ])
+
+        srv = HubServer(localapp=localapp, registry_root=self.tmp / "filters-reg", open_browser=False)
+        srv.start_in_thread()
+        self.addCleanup(srv.stop)
+        base = f"http://127.0.0.1:{srv.port}"
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+        opener.open(base + "/", timeout=5).read()
+
+        def get(query=""):
+            return json.loads(opener.open(base + "/api/sessions" + query, timeout=5).read())
+
+        all_rows = get()
+        self.assertEqual([item["value"] for item in all_rows["filterOptions"]["profiles"]], ["default", "student"])
+        self.assertEqual(
+            [item["value"] for item in all_rows["filterOptions"]["sources"]],
+            ["browser", "cli", "desktop", "telegram"],
+        )
+        self.assertEqual([row["id"] for row in get("?profile=default")["sessions"]], ["after", "end", "start", "before"])
+        self.assertEqual({row["id"] for row in get("?source=telegram")["sessions"]}, {"middle"})
+        self.assertEqual(
+            {row["id"] for row in get("?from=2026-01-01&to=2026-01-01")["sessions"]},
+            {"start", "end", "middle", "blank-source"},
+        )
+        self.assertEqual(
+            [row["id"] for row in get("?from=2026-01-01&to=2026-01-01&profile=student&source=telegram")["sessions"]],
+            ["middle"],
+        )
+        zero = get("?q=not-present")
+        self.assertEqual(zero["sessions"], [])
+        self.assertEqual(len(zero["filterOptions"]["sources"]), 4)
+        self.assertEqual(get("?from=2026-01-02&to=2026-01-01")["sessions"], [])
+
+        con = sqlite3.connect(default_db)
+        con.execute(
+            "INSERT INTO sessions VALUES (?, ?, ?, 'chat', ?, ?, ?, 0, ?)",
+            ("new-detected", "new-detected", "new-source", "thread-new", "2026-01-03T00:00:00Z", "2026-01-03T00:00:00Z", "C:/Synthetic/new"),
+        )
+        con.commit()
+        con.close()
+        self.assertIn("new-source", [item["value"] for item in get()["filterOptions"]["sources"]])
+
+        empty_srv = HubServer(localapp=self.tmp / "empty-localapp", registry_root=self.tmp / "empty-reg", open_browser=False)
+        empty_srv.start_in_thread()
+        self.addCleanup(empty_srv.stop)
+        empty_base = f"http://127.0.0.1:{empty_srv.port}"
+        empty_opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+        empty_opener.open(empty_base + "/", timeout=5).read()
+        empty = json.loads(empty_opener.open(empty_base + "/api/sessions", timeout=5).read())
+        self.assertEqual(empty, {"sessions": [], "filterOptions": {"profiles": [], "sources": []}})
+
     def test_security_rejects_bad_content_method_override_and_unknown_method(self):
         from session_hub.server import HubServer
 
@@ -404,6 +484,10 @@ class CoreTests(unittest.TestCase):
         self.assertNotRegex(joined, r"https?://")
         self.assertIn("textContent", js)
         self.assertNotIn("innerHTML", js)
+        self.assertRegex(html, r'<select id="profileFilter"[^>]*>')
+        self.assertRegex(html, r'<select id="sourceFilter"[^>]*>')
+        self.assertRegex(html, r'<input id="fromFilter"[^>]*type="date"')
+        self.assertRegex(html, r'<input id="toFilter"[^>]*type="date"')
 
 
 if __name__ == "__main__":

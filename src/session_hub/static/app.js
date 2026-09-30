@@ -184,7 +184,7 @@ async function loadCandidates() {
   });
 }
 
-async function loadSessions(query = "") {
+function buildSessionParams(query = "") {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if ($("profileFilter") && $("profileFilter").value) params.set("profile", $("profileFilter").value);
@@ -192,7 +192,38 @@ async function loadSessions(query = "") {
   if ($("fromFilter") && $("fromFilter").value) params.set("from", $("fromFilter").value);
   if ($("toFilter") && $("toFilter").value) params.set("to", $("toFilter").value);
   if ($("contentSearch") && $("contentSearch").checked) params.set("content", "true");
+  return params;
+}
+
+function replaceSessionFilterOptions(id, items) {
+  const el = $(id);
+  if (!el) return;
+  const current = el.value;
+  const valid = Array.isArray(items)
+    ? items.filter((item) => item && typeof item.value === "string" && item.value)
+    : [];
+  const all = document.createElement("option");
+  all.value = "";
+  setText(all, "전체");
+  const options = valid.map((item) => {
+    const option = document.createElement("option");
+    option.value = item.value;
+    setText(option, item.label || item.value);
+    return option;
+  });
+  el.replaceChildren(all, ...options);
+  el.value = valid.some((item) => item.value === current) ? current : "";
+}
+
+function updateSessionFilterOptions(filterOptions = {}) {
+  replaceSessionFilterOptions("profileFilter", filterOptions.profiles);
+  replaceSessionFilterOptions("sourceFilter", filterOptions.sources);
+}
+
+async function loadSessions(query = "") {
+  const params = buildSessionParams(query);
   const data = await api(`/api/sessions?${params.toString()}`);
+  updateSessionFilterOptions(data.filterOptions);
   renderSessions($("sessionList"), data.sessions);
   renderSessions($("recentHomeSessions"), data.sessions.slice(0, 5));
 }
@@ -313,7 +344,7 @@ function bind() {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { renderSessions };
+  module.exports = { buildSessionParams, renderSessions, updateSessionFilterOptions };
 }
 
 if (typeof document !== "undefined") {

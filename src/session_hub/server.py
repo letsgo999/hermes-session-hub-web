@@ -5,6 +5,7 @@ import re
 import secrets
 import threading
 import webbrowser
+from datetime import date, datetime, time, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,6 +49,34 @@ def _attachment(name):
 def _session_open_url(session_id):
     _safe_id(session_id, "sessionId")
     return f"hermes://open/{quote(session_id, safe='')}"
+
+
+KST = timezone(timedelta(hours=9))
+
+
+def _kst_session_bounds(date_from, date_to):
+    def parse(value):
+        if not value:
+            return None
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            raise ValueError("invalid session date")
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("invalid session date") from exc
+
+    start = parse(date_from)
+    end = parse(date_to)
+    if start and end and start > end:
+        return None
+
+    def utc_text(day):
+        value = datetime.combine(day, time.min, tzinfo=KST).astimezone(timezone.utc)
+        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    lower = utc_text(start) if start else None
+    upper = utc_text(end + timedelta(days=1)) if end else None
+    return lower, upper
 
 
 class HubServer:
@@ -269,7 +298,7 @@ class HubServer:
                 if path == "/api/projects":
                     return self._json({"projects": outer.registry.list_projects()})
                 if path == "/api/sessions":
-                    return self._json({"sessions": self._sessions(qs)})
+                    return self._json(self._sessions(qs))
                 if path == "/api/messages":
                     return self._json({"messages": self._messages(qs)})
                 if path == "/api/candidates":
@@ -346,21 +375,32 @@ class HubServer:
             def _sessions(self, qs):
                 query = qs.get("q", [""])[0][:100]
                 profile_filter = qs.get("profile", [""])[0]
-                source = qs.get("source", [""])[0][:40] or None
+                if profile_filter:
+                    _safe_id(profile_filter, "profile")
+                source = qs.get("source", [""])[0] or None
                 date_from = qs.get("from", [""])[0][:40] or None
                 date_to = qs.get("to", [""])[0][:40] or None
                 limit = int(qs.get("limit", ["100"])[0] or "100")
                 content = qs.get("content", ["false"])[0].lower() == "true"
+                bounds = _kst_session_bounds(date_from, date_to)
                 rows = []
-                for profile in outer._profiles():
-                    if profile.get("unsupported"):
+                sources = set()
+                profiles = [profile for profile in outer._profiles() if not profile.get("unsupported")]
+                for profile in profiles:
+                    src = HermesSource(profile["dbPath"], profile["id"])
+                    sources.update(src.list_session_sources())
+                    if bounds is None or (profile_filter and profile["id"] != profile_filter):
                         continue
-                    if profile_filter and profile["id"] != _safe_id(profile_filter, "profile"):
-                        continue
-                    rows.extend(HermesSource(profile["dbPath"], profile["id"]).list_sessions(
-                        query=query, source=source, date_from=date_from, date_to=date_to, limit=limit, search_content=content
+                    rows.extend(src.list_sessions(
+                        query=query, source=source, date_from=bounds[0], date_to=bounds[1], limit=limit, search_content=content
                     ))
-                return rows[:max(1, min(limit, 200))]
+                return {
+                    "sessions": rows[:max(1, min(limit, 200))],
+                    "filterOptions": {
+                        "profiles": [{"value": profile["id"], "label": profile["id"]} for profile in profiles],
+                        "sources": [{"value": value, "label": value} for value in sorted(sources, key=str.casefold)],
+                    },
+                }
 
             def _messages(self, qs):
                 profile_id = qs.get("profile", [""])[0]

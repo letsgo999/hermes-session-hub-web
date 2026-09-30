@@ -138,7 +138,7 @@ class HermesSource:
                 where.append("COALESCE(last_activity_at, started_at) >= ?")
                 params.append(date_from)
             if date_to:
-                where.append("COALESCE(last_activity_at, started_at) <= ?")
+                where.append("COALESCE(last_activity_at, started_at) < ?")
                 params.append(date_to)
             if where:
                 sql += " WHERE " + " AND ".join(where)
@@ -150,6 +150,15 @@ class HermesSource:
             if "workspace_path" in row:
                 row["workspaceName"] = _basename(row.pop("workspace_path"))
         return rows
+
+    def list_session_sources(self):
+        with closing(self._connect()) as con:
+            self._required_columns(con)
+            rows = con.execute(
+                "SELECT DISTINCT source FROM sessions "
+                "WHERE source IS NOT NULL AND TRIM(source) <> '' ORDER BY source COLLATE NOCASE"
+            ).fetchall()
+        return [row["source"] for row in rows]
 
     def read_messages(self, session_id, limit=50):
         limit = max(1, min(int(limit or 50), 200))
