@@ -1,7 +1,9 @@
 import hashlib
+import math
 import os
 import sqlite3
 from contextlib import closing
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -18,6 +20,26 @@ class UnsafeSourceStateError(RuntimeError):
 
 def _dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
+
+def _timestamp_to_unix_seconds(value):
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        try:
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            numeric = parsed.timestamp()
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+    if not math.isfinite(numeric):
+        return None
+    if abs(numeric) >= 100_000_000_000:
+        numeric /= 1000.0
+    return numeric
 
 
 def _readonly_connection(path: Path):
@@ -38,6 +60,7 @@ def _readonly_connection(path: Path):
     uri = f"file:{quote(str(path.resolve()).replace(os.sep, '/'), safe=':/')}?{params}"
     con = sqlite3.connect(uri, uri=True)
     con.row_factory = _dict_factory
+    con.create_function("hshw_unix_seconds", 1, _timestamp_to_unix_seconds, deterministic=True)
     con.execute("PRAGMA query_only=ON")
 
     def authorizer(action, arg1, arg2, dbname, source):
@@ -125,6 +148,7 @@ class HermesSource:
             sql = f"SELECT {', '.join(select)} FROM sessions"
             params = []
             where = []
+            normalized_timestamp = "hshw_unix_seconds(COALESCE(last_activity_at, started_at))"
             if query:
                 where.append("(title LIKE ? OR id LIKE ?)")
                 params.extend([f"%{query}%", f"%{query}%"])
@@ -134,15 +158,15 @@ class HermesSource:
             if source:
                 where.append("source=?")
                 params.append(source)
-            if date_from:
-                where.append("COALESCE(last_activity_at, started_at) >= ?")
+            if date_from is not None:
+                where.append(f"{normalized_timestamp} >= ?")
                 params.append(date_from)
-            if date_to:
-                where.append("COALESCE(last_activity_at, started_at) < ?")
+            if date_to is not None:
+                where.append(f"{normalized_timestamp} < ?")
                 params.append(date_to)
             if where:
                 sql += " WHERE " + " AND ".join(where)
-            sql += " ORDER BY COALESCE(last_activity_at, started_at) DESC LIMIT ?"
+            sql += f" ORDER BY {normalized_timestamp} DESC LIMIT ?"
             params.append(limit)
             rows = con.execute(sql, params).fetchall()
         for row in rows:

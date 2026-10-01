@@ -70,12 +70,12 @@ def _kst_session_bounds(date_from, date_to):
     if start and end and start > end:
         return None
 
-    def utc_text(day):
+    def utc_epoch(day):
         value = datetime.combine(day, time.min, tzinfo=KST).astimezone(timezone.utc)
-        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return value.timestamp()
 
-    lower = utc_text(start) if start else None
-    upper = utc_text(end + timedelta(days=1)) if end else None
+    lower = utc_epoch(start) if start else None
+    upper = utc_epoch(end + timedelta(days=1)) if end else None
     return lower, upper
 
 

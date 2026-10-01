@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 import zipfile
 import io
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -428,6 +429,84 @@ class CoreTests(unittest.TestCase):
         empty_opener.open(empty_base + "/", timeout=5).read()
         empty = json.loads(empty_opener.open(empty_base + "/api/sessions", timeout=5).read())
         self.assertEqual(empty, {"sessions": [], "filterOptions": {"profiles": [], "sources": []}})
+
+    def test_session_date_filters_normalize_numeric_and_text_timestamps(self):
+        from session_hub.server import HubServer
+
+        localapp = self.tmp / "numeric-filters-localapp"
+        state_db = localapp / "hermes" / "state.db"
+        state_db.parent.mkdir(parents=True)
+        con = sqlite3.connect(state_db)
+        con.executescript(
+            """
+            CREATE TABLE schema_version(version INTEGER);
+            INSERT INTO schema_version VALUES (26);
+            CREATE TABLE sessions(
+                id TEXT PRIMARY KEY, title TEXT, source TEXT, chat_type TEXT,
+                thread_id TEXT, started_at, last_activity_at,
+                message_count INTEGER, workspace_path TEXT
+            );
+            CREATE TABLE messages(
+                id TEXT PRIMARY KEY, session_id TEXT, role TEXT, content TEXT,
+                timestamp, active INTEGER
+            );
+            """
+        )
+
+        def epoch(iso_value):
+            return datetime.fromisoformat(iso_value.replace("Z", "+00:00")).timestamp()
+
+        rows = [
+            ("before", "cli", epoch("2026-09-30T14:59:59Z")),
+            ("numeric-seconds", "cli", epoch("2026-10-01T03:00:00Z")),
+            ("numeric-milliseconds", "desktop", epoch("2026-10-01T04:00:00Z") * 1000.0),
+            ("numeric-string", "desktop", str(epoch("2026-10-01T05:00:00Z"))),
+            ("text-iso", "desktop", "2026-10-01T06:00:00Z"),
+            ("after", "cli", epoch("2026-10-01T15:00:00Z")),
+        ]
+        con.executemany(
+            "INSERT INTO sessions VALUES (?, ?, ?, 'chat', ?, ?, ?, 0, ?)",
+            [
+                (sid, sid, source, f"thread-{sid}", stamp, stamp, f"C:/Synthetic/{sid}")
+                for sid, source, stamp in rows
+            ],
+        )
+        storage_types = dict(con.execute("SELECT id, typeof(last_activity_at) FROM sessions"))
+        con.commit()
+        con.close()
+        self.assertEqual(storage_types["numeric-seconds"], "real")
+        self.assertEqual(storage_types["numeric-milliseconds"], "real")
+        self.assertEqual(storage_types["numeric-string"], "text")
+        self.assertEqual(storage_types["text-iso"], "text")
+
+        db_hash_before = hashlib.sha256(state_db.read_bytes()).hexdigest()
+        sidecars_before = {item.name for item in state_db.parent.iterdir() if item.name.startswith("state.db-")}
+        srv = HubServer(localapp=localapp, registry_root=self.tmp / "numeric-filters-reg", open_browser=False)
+        srv.start_in_thread()
+        self.addCleanup(srv.stop)
+        base = f"http://127.0.0.1:{srv.port}"
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+        opener.open(base + "/", timeout=5).read()
+
+        def get(query):
+            response = opener.open(base + "/api/sessions" + query, timeout=5)
+            self.assertEqual(response.status, 200)
+            return json.loads(response.read())["sessions"]
+
+        on_day = {"numeric-seconds", "numeric-milliseconds", "numeric-string", "text-iso"}
+        self.assertEqual({row["id"] for row in get("?from=2026-10-01")}, on_day | {"after"})
+        self.assertEqual({row["id"] for row in get("?to=2026-10-01")}, {"before"} | on_day)
+        self.assertEqual({row["id"] for row in get("?from=2026-10-01&to=2026-10-01")}, on_day)
+        self.assertEqual(
+            [row["id"] for row in get("?profile=default&source=cli&from=2026-10-01&to=2026-10-01")],
+            ["numeric-seconds"],
+        )
+        self.assertEqual(get("?from=2099-01-01"), [])
+        self.assertEqual(get("?from=2026-10-02&to=2026-10-01"), [])
+
+        self.assertEqual(hashlib.sha256(state_db.read_bytes()).hexdigest(), db_hash_before)
+        sidecars_after = {item.name for item in state_db.parent.iterdir() if item.name.startswith("state.db-")}
+        self.assertEqual(sidecars_after, sidecars_before)
 
     def test_security_rejects_bad_content_method_override_and_unknown_method(self):
         from session_hub.server import HubServer
